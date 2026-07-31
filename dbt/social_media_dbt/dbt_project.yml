@@ -1,0 +1,20 @@
+name: 'social_media_dbt'
+version: '1.0.0'
+config-version: 2
+
+# This is the profile name defined in profiles.yml
+profile: 'social_media_dbt'
+
+# Directory settings
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+models:
+  social_media_dbt:
+    # By default, everything in this project is a view
+    # We can override this per folder in the future
+    +materialization: view
