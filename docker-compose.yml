@@ -8,6 +8,20 @@ services:
       # persist raw output and checkpoint between runs on local machine
       - ./data:/app/data
       - ./checkpoints:/app/checkpoints
+      - ./dbt:/app/dbt
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dbt:
+    image: social_media_ingestion:latest
+    working_dir: /app/dbt/social_media_dbt
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    environment:
+      - DBT_PROFILES_DIR=/app/dbt/social_media_dbt
     depends_on:
       postgres:
         condition: service_healthy

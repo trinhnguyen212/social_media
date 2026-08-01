@@ -9,6 +9,7 @@ dependencies = [
     "pandas",
     "sqlmodel",
     "psycopg2-binary",
+    "dbt-postgres",
 ]
 
 [dependency-groups]

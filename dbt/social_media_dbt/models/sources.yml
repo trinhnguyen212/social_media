@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: raw_social_media
+    description: "Tables produced by the Python ETL pipeline"
+    schema: public
+
+    tables:
+      - name: posts
+        description: "Facebook posts loaded by the Python ETL pipeline"
+
+      - name: comments
+        description: "Facebook comments loaded by the Python ETL pipeline"
