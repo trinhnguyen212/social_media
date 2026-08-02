@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: stg_posts
+    description: "Staging model for Facebook posts"
+    columns:
+      - name: post_id
+        description: "Primary key for posts"
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_comments
+    description: "Staging model for Facebook comments"
+    columns:
+      - name: comment_id
+        description: "Primary key for comments"
+        tests:
+          - unique
+          - not_null
