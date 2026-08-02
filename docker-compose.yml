@@ -22,9 +22,13 @@ services:
       - .:/app
     environment:
       - DBT_PROFILES_DIR=/app/dbt/social_media_dbt
+    command: sh -c "dbt run && dbt test"
     depends_on:
       postgres:
         condition: service_healthy
+      ingestion:
+        condition: service_completed_successfully
+
 
   postgres:
     image: postgres:16

@@ -1,148 +1,406 @@
 # Social Media ETL & Analytics Pipeline
 
-A specialized data engineering pipeline that extracts Facebook social media data, processes it through a robust Python ETL engine, and utilizes dbt to implement a professional transformation layer for analytics.
+A modern data engineering project that extracts Facebook social media data through a Python ETL pipeline, stores validated data in PostgreSQL, and uses dbt to build a structured analytics layer with automated data quality testing.
 
-## 🚀 Project Overview
+---
 
-This project implements a complete **Extract-Transform-Load (ETL)** pipeline with a downstream **dbt (Data Build Tool)** transformation layer. 
+# 🚀 Project Overview
 
-The project is designed to ensure data integrity at every stage: the Python ETL engine handles raw data extraction, local landing zone persistence, and strict Pydantic schema validation before loading data into the warehouse. Once the data is loaded, dbt takes over to implement a modular transformation architecture (staging and mart layers) to prepare the data for final analysis.
+This project demonstrates an end-to-end **Extract–Transform–Load (ETL)** pipeline followed by a downstream **dbt (Data Build Tool)** transformation layer.
 
-## 🏗 Architecture
+The Python ETL pipeline is responsible for:
+
+- Extracting posts and comments from the Facebook Graph API.
+- Persisting raw API responses in a local JSON landing zone.
+- Validating and standardizing data using Pydantic models.
+- Loading validated data into PostgreSQL using **idempotent bulk upserts** (`INSERT ... ON CONFLICT DO UPDATE`).
+
+Once the ETL completes successfully, dbt automatically:
+
+- Builds staging models.
+- Builds analytics-ready mart models.
+- Executes automated data quality tests.
+
+The entire project runs with a **single Docker Compose command**.
+
+---
+
+# 🏗 Solution Architecture
 
 ```mermaid
 graph LR
-    API[Facebook Graph API] --> PythonETL[Python ETL Pipeline]
-    PythonETL -->|Save Raw JSON| LandingZone[(Local JSON Landing Zone)]
-    LandingZone -->|Validate & Load| PostgresRaw[(Postgres: public schema)]
-    PostgresRaw -->|Source| dbtStaging[dbt Staging Layer]
-    dbtStaging -->|Ref| dbtMarts[dbt Mart Layer]
-    dbtMarts -->|Analytics| BI[BI Tools / SQL Queries]
-    
-    subgraph "Data Warehouse (Postgres)"
-        PostgresRaw
-        subgraph "dbt_dev Schema"
-            dbtStaging
-            dbtMarts
-        end
-    end
+    A[Facebook Graph API]
+    B[Python ETL Pipeline]
+    C[Local JSON Landing Zone]
+    D[(PostgreSQL<br>public schema)]
+    E[dbt Sources]
+    F[dbt Staging Models]
+    G[dbt Mart Models]
+    H[dbt Tests]
+    I[Analytics / BI]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
 ```
 
-## 🛠 Technology Stack
+---
 
-- **Language**: Python 3.11
-- **Data Validation**: Pydantic (Schema enforcement and type safety)
-- **Database**: PostgreSQL 16
-- **Transformation**: dbt (Data Build Tool)
-- **Orchestration**: Docker & Docker Compose
-- **Environment**: Windows 11 / PowerShell
+# ⚙ Pipeline Execution
 
-## 📂 Project Structure
+Run the complete project with:
+
+```bash
+docker compose up --build
+```
+
+Execution order:
+
+```text
+Build Docker Image
+        │
+        ▼
+Start PostgreSQL
+        │
+        ▼
+Wait for PostgreSQL Health Check
+        │
+        ▼
+Run Python ETL
+        │
+        ▼
+Extract Facebook Data
+        │
+        ▼
+Save Raw JSON
+        │
+        ▼
+Validate using Pydantic
+        │
+        ▼
+Bulk Upsert into PostgreSQL
+        │
+        ▼
+Run dbt Models
+        │
+        ▼
+Run dbt Tests
+        │
+        ▼
+Analytics Ready
+```
+
+---
+
+# 🛠 Technology Stack
+
+| Category            | Technology            |
+| ------------------- | --------------------- |
+| Language            | Python 3.11           |
+| Data Validation     | Pydantic              |
+| Data Processing     | Pandas                |
+| Database            | PostgreSQL 16         |
+| ORM                 | SQLModel / SQLAlchemy |
+| Data Transformation | dbt                   |
+| Containerization    | Docker                |
+| Orchestration       | Docker Compose        |
+
+---
+
+# 📂 Project Structure
 
 ```text
 .
+├── data/
+│   └── raw/
+│       └── facebook/
+│           └── {page_id}/
+│               ├── posts/
+│               └── comments/
+│
 ├── dbt/
-│   └── social_media_dbt/       # dbt project root
+│   └── social_media_dbt/
 │       ├── models/
-│       │   ├── staging/         # Thin pass-through models (cleaning)
-│       │   │   ├── stg_posts.sql
-│       │   │   ├── stg_comments.sql
-│       │   │   └── schema.yml    # Data quality tests
-│       │   ├── marts/           # Business-ready models (fact tables)
-│       │   │   ├── fct_posts.sql
-│       │   │   ├── fct_comments.sql
-│       │   │   └── schema.yml    # Data quality tests
-│       │   └── sources.yml      # Raw table definitions
-│       └── dbt_project.yml      # Project configuration
+│       │   ├── staging/
+│       │   ├── marts/
+│       │   └── sources.yml
+│       ├── dbt_project.yml
+│       └── profiles.yml
+│
 ├── src/
-│   ├── facebook/               # API client and ingestion logic
-│   ├── models/                 # Pydantic models for data validation
-│   ├── pipeline/               # ETL core (ingestion, transform, load)
-│   └── warehouse/              # PostgreSQL connection and storage logic
-├── docker-compose.yml           # Infrastructure orchestration
+│   ├── facebook/
+│   ├── models/
+│   ├── pipeline/
+│   ├── storage/
+│   └── warehouse/
+│
+├── docker-compose.yml
+├── Dockerfile
 └── README.md
 ```
 
-## 🔄 Workflows
+---
 
-### 1. Python ETL Workflow
-The pipeline implements a strict **Extract $\rightarrow$ Transform $\rightarrow$ Load** sequence:
+# 🔄 Python ETL Workflow
 
-- **Extract**: Fetches raw data from the Facebook Graph API.
-- **Transform**: 
-    - **Landing**: Saves raw responses as JSON files in a hierarchical structure partitioned by `page_id`, `type`, and `date` for auditability.
-    - **Processing**: Reads raw JSON, cleans and standardizes the data, and enforces strict type safety using **Pydantic models**.
-    - **Preparation**: Converts validated data into optimized Pandas DataFrames.
-- **Load**: Performs an idempotent "upsert" (Insert or Update) into the `public.posts` and `public.comments` tables in PostgreSQL.
+The ETL pipeline follows the standard **Extract → Transform → Load** process.
 
-### 2. dbt Transformation Layer
-dbt complements the Python ETL by handling the warehouse-level transformations *after* the data has been loaded:
+## 1. Extract
 
-1. **Source**: `sources.yml` identifies the `public` tables (loaded by Python) as the raw inputs.
-2. **Staging Layer**: `stg_` models create thin views in the `dbt_dev` schema to decouple raw data from business logic.
-3. **Mart Layer**: `fct_` models create the final analytics-ready views.
-4. **Data Quality**: `unique` and `not_null` tests are applied to primary keys (`post_id`, `comment_id`) to ensure the warehouse remains a reliable source of truth.
+The pipeline connects to the Facebook Graph API and retrieves:
 
-## 📊 Database Schema
+- Facebook posts
+- Facebook comments
 
-| Layer | Table/View | Description | Key Constraint |
-| :--- | :--- | :--- | :--- |
-| **Raw** | `public.posts` | Raw Facebook posts loaded via Python ETL | `post_id` |
-| **Raw** | `public.comments` | Raw Facebook comments loaded via Python ETL | `comment_id` |
-| **Staging** | `dbt_dev.stg_posts` | Cleaned view of posts | `unique`, `not_null` |
-| **Staging** | `dbt_dev.stg_comments` | Cleaned view of comments | `unique`, `not_null` |
-| **Mart** | `dbt_dev.fct_posts` | Final analytics-ready posts view | `unique`, `not_null` |
-| **Mart** | `dbt_dev.fct_comments` | Final analytics-ready comments view | `unique`, `not_null` |
+---
 
-## ✨ Features
+## 2. Transform
 
-- **End-to-End Pipeline**: Complete flow from API extraction to analytics-ready views.
-- **Data Integrity**: Pydantic validation prevents malformed API data from entering the database.
-- **Auditability**: Local JSON landing zone keeps a permanent record of raw API responses.
-- **Modular Design**: Separates ingestion (Python) from warehouse transformation (dbt).
-- **Testing Framework**: Integrated dbt tests to programmatically verify data quality.
-- **Containerized Stack**: Full environment reproducibility using Docker Compose.
+Before loading data into PostgreSQL, the ETL performs several transformation steps.
 
-## ⚠️ Limitations
+### Landing Zone
 
-- **Full Refreshes**: The current dbt models are views; complex logic would require switching to table materialization for performance.
-- **Simple Marts**: Mart models are currently pass-throughs; advanced business aggregations are not yet implemented.
-- **Single-threaded Ingestion**: The Python ETL processes data sequentially.
+Raw API responses are stored locally as JSON files:
 
-## ⚙️ Getting Started
+```text
+data/raw/facebook/{page_id}/{posts|comments}/{year}/{month}/{day}/
+```
 
-### Prerequisites
-- Docker Desktop installed and running.
+Benefits:
 
-### Installation & Setup
-1. Clone the repository.
-2. Start the infrastructure:
-   ```bash
-   docker compose up -d
-   ```
+- Preserves the original API response.
+- Supports auditability.
+- Enables data reprocessing without calling the API again.
 
-### Running the Pipeline
+---
 
-#### 1. Run the ETL Pipeline
-Extracts, transforms, and loads data into the raw PostgreSQL tables:
+### Data Validation
+
+Every record is validated using **Pydantic** models.
+
+Validation includes:
+
+- Required fields
+- Data types
+- Schema consistency
+
+Only valid records continue through the pipeline.
+
+---
+
+### Data Preparation
+
+Validated records are converted into Pandas DataFrames for efficient loading into PostgreSQL.
+
+---
+
+## 3. Load
+
+The ETL loads data into:
+
+- `public.posts`
+- `public.comments`
+
+using PostgreSQL **bulk upserts** (`INSERT ... ON CONFLICT DO UPDATE`).
+
+This makes the pipeline **idempotent**, allowing repeated executions without creating duplicate records.
+
+---
+
+# 🔄 dbt Transformation Layer
+
+dbt operates after the ETL has loaded data into PostgreSQL.
+
+## Source Layer
+
+The source layer registers:
+
+- `public.posts`
+- `public.comments`
+
+as warehouse sources.
+
+---
+
+## Staging Layer
+
+The staging models:
+
+- `stg_posts`
+- `stg_comments`
+
+provide a stable interface between the raw warehouse tables and downstream analytical models.
+
+---
+
+## Mart Layer
+
+The mart models:
+
+- `fct_posts`
+- `fct_comments`
+
+represent the analytics-ready reporting layer.
+
+Although currently implemented as pass-through views, this layer is designed to support future business logic, aggregations, and reporting metrics.
+
+---
+
+## Data Quality
+
+dbt automatically validates warehouse data using:
+
+- `unique`
+- `not_null`
+
+tests on:
+
+- `post_id`
+- `comment_id`
+
+These tests execute after every pipeline run to ensure warehouse integrity.
+
+---
+
+# 📊 Database Layers
+
+| Layer         | Objects                       | Purpose                         |
+| ------------- | ----------------------------- | ------------------------------- |
+| Landing Zone  | JSON Files                    | Preserve raw API responses      |
+| Raw Warehouse | public.posts, public.comments | Validated ETL output            |
+| Staging       | stg_posts, stg_comments       | Stable transformation layer     |
+| Mart          | fct_posts, fct_comments       | Analytics-ready reporting layer |
+
+---
+
+# ✨ Project Highlights
+
+- End-to-end Python ETL pipeline
+- Facebook Graph API integration
+- Local JSON landing zone
+- Pydantic schema validation
+- Pandas-based data processing
+- PostgreSQL warehouse
+- Idempotent bulk upserts
+- dbt source, staging, and mart architecture
+- Automated dbt data quality testing
+- Docker Compose orchestration
+- Single-command pipeline execution
+
+---
+
+# 📌 Skills Demonstrated
+
+- Python
+- SQL
+- PostgreSQL
+- Pandas
+- Pydantic
+- SQLAlchemy
+- SQLModel
+- Docker
+- Docker Compose
+- dbt
+- ETL Design
+- Data Validation
+- Data Warehousing
+
+---
+
+# 🚀 Getting Started
+
+## Prerequisites
+
+- Docker Desktop
+- Git
+
+---
+
+## Clone the Repository
+
+```bash
+git clone <repository-url>
+cd social_media
+```
+
+---
+
+## Configure Environment
+
+Create a `.env` file and configure:
+
+- Facebook API credentials
+- PostgreSQL connection settings
+
+---
+
+## Run the Complete Pipeline
+
+```bash
+docker compose up --build
+```
+
+This command automatically:
+
+1. Builds the Docker image.
+2. Starts PostgreSQL.
+3. Waits for PostgreSQL to become healthy.
+4. Executes the Python ETL pipeline.
+5. Loads validated data into PostgreSQL.
+6. Runs dbt transformations.
+7. Executes dbt data quality tests.
+
+No additional commands are required.
+
+---
+
+# 🔧 Development Commands
+
+Run only the ETL pipeline:
+
 ```bash
 docker compose run --rm ingestion python src/main.py
 ```
 
-#### 2. Run dbt Transformations
-Transforms raw data into staging and mart views:
+Run dbt models:
+
 ```bash
 docker compose run --rm dbt dbt run
 ```
 
-#### 3. Run Data Quality Tests
-Verifies that primary keys are unique and not null:
+Run dbt tests:
+
 ```bash
 docker compose run --rm dbt dbt test
 ```
 
-## 🛠 Future Improvements
-- **Incremental Loading**: Implement delta loading in the Python ETL to avoid full table refreshes.
-- **Advanced Analytics**: Build joined mart models (e.g., `fct_engagement`) to analyze post-comment relationships.
-- **Airflow Orchestration**: Move from manual Docker runs to a scheduled DAG for the entire pipeline.
-- **CI/CD Pipeline**: Add GitHub Actions to automate `dbt test` on every commit.
+---
+
+# ⚠ Current Limitations
+
+- Mart models currently implement minimal business logic.
+- dbt models are materialized as views.
+- The ETL pipeline processes data sequentially.
+- Pipeline execution is manual (`docker compose up --build`) rather than scheduled.
+
+---
+
+# 🛠 Future Improvements
+
+- Implement incremental ETL loading.
+- Add richer analytical mart models and business metrics.
+- Introduce Apache Airflow for production orchestration.
+- Add GitHub Actions for CI/CD.
+- Generate interactive dbt documentation.
+- Build Power BI dashboards on top of the mart layer.
+
+---
+
+# 📄 License
+
+This project is intended for educational and portfolio purposes.
